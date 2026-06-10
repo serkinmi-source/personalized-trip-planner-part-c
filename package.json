@@ -1,0 +1,22 @@
+{
+  "name": "personalized-trip-planner-main",
+  "version": "1.0.0",
+  "description": "Personalized Trip Planner is a frontend-only university web course project. It is an English-language travel planning website that recommends trip packages based on user preferences.",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/app.js",
+    "dev": "nodemon server/app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "mssql": "^12.5.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

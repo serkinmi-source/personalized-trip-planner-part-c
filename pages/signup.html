@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personalized Trip Planner | Sign Up</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/storage.js"></script>
+  <script src="../js/main.js" defer></script>
+  <script src="../js/validation.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-content">
+      <a class="site-logo" href="../index.html">Personalized Trip Planner</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+        Menu
+      </button>
+      <nav class="site-nav" id="primary-nav" aria-label="Main navigation">
+        <ul>
+          <li><a href="../index.html">Home</a></li>
+          <li><a href="preferences.html">Plan a Trip</a></li>
+          <li><a href="my-trips.html">My Trips</a></li>
+          <li><a href="profile.html">Profile</a></li>
+          <li><a href="login.html">Login</a></li>
+          <li><a class="nav-cta" href="signup.html">Sign Up</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section auth-section">
+      <div class="container two-column-layout">
+        <div class="page-intro">
+          <p class="section-label">Create your account</p>
+          <h1>Sign Up</h1>
+          <p class="lead-text">Create a demo account to save favorite trips.</p>
+        </div>
+
+        <form class="form auth-card" id="signup-form" action="#" method="post" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="first-name">First name</label>
+              <input type="text" id="first-name" name="firstName" autocomplete="given-name" placeholder="First name" aria-describedby="first-name-error">
+              <p class="field-error" id="first-name-error" aria-live="polite"></p>
+            </div>
+
+            <div class="form-group">
+              <label for="last-name">Last name</label>
+              <input type="text" id="last-name" name="lastName" autocomplete="family-name" placeholder="Last name" aria-describedby="last-name-error">
+              <p class="field-error" id="last-name-error" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="signup-email">Email</label>
+            <input type="email" id="signup-email" name="email" autocomplete="email" placeholder="you@example.com" aria-describedby="signup-email-error">
+            <p class="field-error" id="signup-email-error" aria-live="polite"></p>
+          </div>
+
+          <div class="form-group">
+            <label for="signup-password">Password</label>
+            <input type="password" id="signup-password" name="password" autocomplete="new-password" placeholder="Create a password" aria-describedby="signup-password-error">
+            <p class="field-error" id="signup-password-error" aria-live="polite"></p>
+          </div>
+
+          <div class="form-group">
+            <label for="confirm-password">Confirm password</label>
+            <input type="password" id="confirm-password" name="confirmPassword" autocomplete="new-password" placeholder="Repeat your password" aria-describedby="confirm-password-error">
+            <p class="field-error" id="confirm-password-error" aria-live="polite"></p>
+          </div>
+
+          <div class="form-message" id="signup-form-message" aria-live="polite"></div>
+          <button class="btn btn-primary full-width" type="submit">Complete Registration</button>
+          <p class="form-note">Already have an account? <a href="login.html">Log in</a>.</p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <h2>Personalized Trip Planner</h2>
+        <p>Plan friendly, personalized travel experiences from your preferences.</p>
+      </div>
+      <address class="footer-contact">
+        <p>Email: <a href="mailto:aviramya@post.bgu.ac.il">aviramya@post.bgu.ac.il</a></p>
+        <p>Phone: <a href="tel:0507877748">0507877748</a></p>
+      </address>
+    </div>
+  </footer>
+</body>
+</html>

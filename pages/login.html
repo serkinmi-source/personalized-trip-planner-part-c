@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personalized Trip Planner | Login</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/storage.js"></script>
+  <script src="../js/main.js" defer></script>
+  <script src="../js/validation.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-content">
+      <a class="site-logo" href="../index.html">Personalized Trip Planner</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+        Menu
+      </button>
+      <nav class="site-nav" id="primary-nav" aria-label="Main navigation">
+        <ul>
+          <li><a href="../index.html">Home</a></li>
+          <li><a href="preferences.html">Plan a Trip</a></li>
+          <li><a href="my-trips.html">My Trips</a></li>
+          <li><a href="profile.html">Profile</a></li>
+          <li><a href="login.html">Login</a></li>
+          <li><a class="nav-cta" href="signup.html">Sign Up</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section auth-section">
+      <div class="container two-column-layout">
+        <div class="page-intro">
+          <p class="section-label">Welcome back</p>
+          <h1>Login</h1>
+          <p class="lead-text">Log in to save trips and view favorites.</p>
+        </div>
+
+        <form class="form auth-card" id="login-form" action="#" method="post" novalidate>
+          <div class="form-group">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" name="email" autocomplete="email" placeholder="you@example.com" aria-describedby="login-email-error">
+            <p class="field-error" id="login-email-error" aria-live="polite"></p>
+          </div>
+
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" name="password" autocomplete="current-password" placeholder="Enter your password" aria-describedby="login-password-error">
+            <p class="field-error" id="login-password-error" aria-live="polite"></p>
+            <p class="forgot-password"><a href="forgot-password.html">Forgot password?</a></p>
+          </div>
+
+          <div class="form-message" id="login-form-message" aria-live="polite"></div>
+          <button class="btn btn-primary full-width" type="submit">Login</button>
+          <p class="form-note">New here? <a href="signup.html">Create an account</a>.</p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <h2>Personalized Trip Planner</h2>
+        <p>Plan friendly, personalized travel experiences from your preferences.</p>
+      </div>
+      <address class="footer-contact">
+        <p>Email: <a href="mailto:aviramya@post.bgu.ac.il">aviramya@post.bgu.ac.il</a></p>
+        <p>Phone: <a href="tel:0507877748">0507877748</a></p>
+      </address>
+    </div>
+  </footer>
+</body>
+</html>

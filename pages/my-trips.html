@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personalized Trip Planner | My Trips</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/data.js"></script>
+  <script src="../js/storage.js"></script>
+  <script src="../js/main.js" defer></script>
+  <script src="../js/myTrips.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-content">
+      <a class="site-logo" href="../index.html">Personalized Trip Planner</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+        Menu
+      </button>
+      <nav class="site-nav" id="primary-nav" aria-label="Main navigation">
+        <ul>
+          <li><a href="../index.html">Home</a></li>
+          <li><a href="preferences.html">Plan a Trip</a></li>
+          <li><a href="my-trips.html">My Trips</a></li>
+          <li><a href="profile.html">Profile</a></li>
+          <li><a href="login.html">Login</a></li>
+          <li><a class="nav-cta" href="signup.html">Sign Up</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section page-hero">
+      <div class="container">
+        <p class="section-label">Saved trips</p>
+        <h1>My Trips</h1>
+        <p class="lead-text">View your saved trip packages.</p>
+      </div>
+    </section>
+
+    <section class="section compact-section">
+      <div class="container" id="my-trips-content">
+        <div class="empty-state large-empty-state">
+          <h2>Loading saved trips...</h2>
+          <p>Loading your saved trips.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <h2>Personalized Trip Planner</h2>
+        <p>Plan friendly, personalized travel experiences from your preferences.</p>
+      </div>
+      <address class="footer-contact">
+        <p>Email: <a href="mailto:aviramya@post.bgu.ac.il">aviramya@post.bgu.ac.il</a></p>
+        <p>Phone: <a href="tel:0507877748">0507877748</a></p>
+      </address>
+    </div>
+  </footer>
+</body>
+</html>
