@@ -398,6 +398,235 @@ app.post("/api/auth/login", async (req, res) => {
     }
 });
 
+// Saves a trip for a logged-in user in the database
+app.post("/api/saved-trips", async (req, res) => {
+    try {
+        const userIdValue = req.body.userId;
+        const tripIdValue = req.body.tripId;
+        const userId = Number(userIdValue);
+        const tripId = Number(tripIdValue);
+
+        if (userIdValue === undefined || userIdValue === null || userIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "User id is required."
+            });
+        }
+
+        if (tripIdValue === undefined || tripIdValue === null || tripIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "Trip id is required."
+            });
+        }
+
+        if (!Number.isInteger(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "User id must be a number."
+            });
+        }
+
+        if (!Number.isInteger(tripId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Trip id must be a number."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const userResult = await pool.request()
+            .input("userId", userId)
+            .query(`
+                SELECT user_id
+                FROM users
+                WHERE user_id = @userId;
+            `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found."
+            });
+        }
+
+        const tripResult = await pool.request()
+            .input("tripId", tripId)
+            .query(`
+                SELECT trip_id
+                FROM trips
+                WHERE trip_id = @tripId;
+            `);
+
+        if (tripResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Trip not found."
+            });
+        }
+
+        const existingSavedTripResult = await pool.request()
+            .input("userId", userId)
+            .input("tripId", tripId)
+            .query(`
+                SELECT
+                    saved_id,
+                    user_id,
+                    trip_id,
+                    status
+                FROM saved_trips
+                WHERE user_id = @userId
+                    AND trip_id = @tripId;
+            `);
+
+        if (existingSavedTripResult.recordset.length > 0) {
+            const savedTrip = existingSavedTripResult.recordset[0];
+
+            return res.json({
+                success: true,
+                message: "Trip is already saved in My Trips.",
+                savedTrip: {
+                    savedId: savedTrip.saved_id,
+                    userId: savedTrip.user_id,
+                    tripId: savedTrip.trip_id,
+                    status: savedTrip.status
+                }
+            });
+        }
+
+        const insertSavedTripResult = await pool.request()
+            .input("userId", userId)
+            .input("tripId", tripId)
+            .query(`
+                INSERT INTO saved_trips (user_id, trip_id, status, saved_at)
+                OUTPUT
+                    INSERTED.saved_id,
+                    INSERTED.user_id,
+                    INSERTED.trip_id,
+                    INSERTED.status
+                VALUES (@userId, @tripId, 'planned', GETDATE());
+            `);
+
+        const savedTrip = insertSavedTripResult.recordset[0];
+
+        res.json({
+            success: true,
+            message: "Trip saved to My Trips.",
+            savedTrip: {
+                savedId: savedTrip.saved_id,
+                userId: savedTrip.user_id,
+                tripId: savedTrip.trip_id,
+                status: savedTrip.status
+            }
+        });
+    } catch (error) {
+        console.error("Error saving trip:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error saving trip",
+            error: error.message
+        });
+    }
+});
+
+// Gets saved trips for one user with trip details from the database
+app.get("/api/users/:userId/saved-trips", async (req, res) => {
+    try {
+        const userIdValue = String(req.params.userId || "").trim();
+        const userId = Number(userIdValue);
+
+        if (userIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "User id is required."
+            });
+        }
+
+        if (!Number.isInteger(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "User id must be numeric."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const userResult = await pool.request()
+            .input("userId", userId)
+            .query(`
+                SELECT user_id
+                FROM users
+                WHERE user_id = @userId;
+            `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found."
+            });
+        }
+
+        const savedTripsResult = await pool.request()
+            .input("userId", userId)
+            .query(`
+                SELECT
+                    st.saved_id,
+                    st.status,
+                    st.saved_at,
+                    t.trip_id,
+                    t.slug,
+                    t.title,
+                    t.city,
+                    t.country,
+                    t.trip_type,
+                    t.estimated_price,
+                    t.duration_days,
+                    t.recommended_group_size,
+                    t.kosher_friendly,
+                    t.short_description,
+                    t.image_path,
+                    ISNULL(AVG(CAST(r.rating AS FLOAT)), 0) AS average_rating,
+                    COUNT(r.review_id) AS review_count
+                FROM saved_trips st
+                JOIN trips t ON st.trip_id = t.trip_id
+                LEFT JOIN reviews r ON t.trip_id = r.trip_id
+                WHERE st.user_id = @userId
+                GROUP BY
+                    st.saved_id,
+                    st.status,
+                    st.saved_at,
+                    t.trip_id,
+                    t.slug,
+                    t.title,
+                    t.city,
+                    t.country,
+                    t.trip_type,
+                    t.estimated_price,
+                    t.duration_days,
+                    t.recommended_group_size,
+                    t.kosher_friendly,
+                    t.short_description,
+                    t.image_path
+                ORDER BY st.saved_at DESC;
+            `);
+
+        res.json({
+            success: true,
+            savedTrips: savedTripsResult.recordset
+        });
+    } catch (error) {
+        console.error("Error getting saved trips:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error getting saved trips",
+            error: error.message
+        });
+    }
+});
+
 // Get one trip with itinerary, interests, and reviews from the database
 app.get("/api/trips/:id", async (req, res) => {
     try {

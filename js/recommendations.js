@@ -534,10 +534,6 @@ function createTripCard(trip, index) {
 
   const saveButton = card.querySelector(".save-trip-button");
 
-  if (window.appStorage && window.appStorage.isTripSaved(trip.id)) {
-    setSavedButtonState(saveButton, "\u2665 Saved");
-  }
-
   saveButton.addEventListener("click", function () {
     handleSaveTrip(trip.id, saveButton);
   });
@@ -629,16 +625,67 @@ function openSaveModal() {
 
 // Saves a trip for logged-in users or opens the guest modal.
 // Expects a trip id and the clicked save button.
-// Updates localStorage only when a user is logged in.
-function handleSaveTrip(tripId, saveButton) {
-  if (!window.appStorage || !window.appStorage.isUserLoggedIn()) {
+// Sends the save request to the Express API.
+async function handleSaveTrip(tripId, saveButton) {
+  const currentUser = getCurrentUserForSavedTrip();
+
+  if (!currentUser) {
     openSaveModal();
     return;
   }
 
-  window.appStorage.saveTripById(tripId);
-  setSavedButtonState(saveButton, "\u2665 Saved");
-  updateResultsMessage("Trip saved to My Trips.");
+  if (saveButton) {
+    saveButton.disabled = true;
+  }
+
+  try {
+    const response = await fetch("/api/saved-trips", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId: Number(currentUser.userId),
+        tripId: Number(tripId)
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok || data.success === false) {
+      if (saveButton) {
+        saveButton.disabled = false;
+      }
+
+      updateResultsMessage(data.message || "Trip could not be saved. Please try again.");
+      return;
+    }
+
+    setSavedButtonState(saveButton, "\u2665 Saved");
+    updateResultsMessage(data.message || "Trip saved to My Trips.");
+  } catch (error) {
+    if (saveButton) {
+      saveButton.disabled = false;
+    }
+
+    updateResultsMessage("Trip could not be saved. Please try again.");
+  }
+}
+
+// Gets the logged-in user for database saved-trip requests.
+// Expects appStorage current-user data with a real userId.
+// Returns the current user object or null for guests.
+function getCurrentUserForSavedTrip() {
+  if (!window.appStorage || !window.appStorage.isUserLoggedIn || !window.appStorage.isUserLoggedIn()) {
+    return null;
+  }
+
+  const currentUser = window.appStorage.getCurrentUser ? window.appStorage.getCurrentUser() : null;
+
+  if (!currentUser || !Number.isInteger(Number(currentUser.userId))) {
+    return null;
+  }
+
+  return currentUser;
 }
 
 // Updates a save button after a trip has been saved.
