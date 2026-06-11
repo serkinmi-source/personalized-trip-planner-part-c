@@ -398,6 +398,303 @@ app.post("/api/auth/login", async (req, res) => {
     }
 });
 
+// Gets one user profile from the database without returning the password
+app.get("/api/users/:userId", async (req, res) => {
+    try {
+        const userIdValue = String(req.params.userId || "").trim();
+        const userId = Number(userIdValue);
+
+        if (userIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "User id is required."
+            });
+        }
+
+        if (!Number.isInteger(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "User id must be numeric."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const userResult = await pool.request()
+            .input("userId", userId)
+            .query(`
+                SELECT
+                    user_id,
+                    first_name,
+                    last_name,
+                    email,
+                    created_at
+                FROM users
+                WHERE user_id = @userId;
+            `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found."
+            });
+        }
+
+        const user = userResult.recordset[0];
+
+        res.json({
+            success: true,
+            user: {
+                userId: user.user_id,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                email: user.email,
+                createdAt: user.created_at
+            }
+        });
+    } catch (error) {
+        console.error("Error getting user profile:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error getting user profile",
+            error: error.message
+        });
+    }
+});
+
+// Updates one user profile in the database
+app.put("/api/users/:userId/profile", async (req, res) => {
+    try {
+        const userIdValue = String(req.params.userId || "").trim();
+        const userId = Number(userIdValue);
+        const firstName = String(req.body.firstName || "").trim();
+        const lastName = String(req.body.lastName || "").trim();
+        const email = String(req.body.email || "").trim().toLowerCase();
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (userIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "User id is required."
+            });
+        }
+
+        if (!Number.isInteger(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "User id must be numeric."
+            });
+        }
+
+        if (!firstName) {
+            return res.status(400).json({
+                success: false,
+                message: "First name is required."
+            });
+        }
+
+        if (!lastName) {
+            return res.status(400).json({
+                success: false,
+                message: "Last name is required."
+            });
+        }
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required."
+            });
+        }
+
+        if (!emailPattern.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: "Enter a valid email address."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const userResult = await pool.request()
+            .input("userId", userId)
+            .query(`
+                SELECT user_id
+                FROM users
+                WHERE user_id = @userId;
+            `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found."
+            });
+        }
+
+        const duplicateEmailResult = await pool.request()
+            .input("userId", userId)
+            .input("email", email)
+            .query(`
+                SELECT user_id
+                FROM users
+                WHERE email = @email
+                    AND user_id <> @userId;
+            `);
+
+        if (duplicateEmailResult.recordset.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: "Email is already registered."
+            });
+        }
+
+        const updateResult = await pool.request()
+            .input("userId", userId)
+            .input("firstName", firstName)
+            .input("lastName", lastName)
+            .input("email", email)
+            .query(`
+                UPDATE users
+                SET
+                    first_name = @firstName,
+                    last_name = @lastName,
+                    email = @email
+                OUTPUT
+                    INSERTED.user_id,
+                    INSERTED.first_name,
+                    INSERTED.last_name,
+                    INSERTED.email
+                WHERE user_id = @userId;
+            `);
+
+        const user = updateResult.recordset[0];
+
+        res.json({
+            success: true,
+            message: "Profile updated successfully.",
+            user: {
+                userId: user.user_id,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                email: user.email
+            }
+        });
+    } catch (error) {
+        console.error("Error updating profile:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error updating profile",
+            error: error.message
+        });
+    }
+});
+
+// Updates one user's plain-text demo password
+app.put("/api/users/:userId/password", async (req, res) => {
+    try {
+        const userIdValue = String(req.params.userId || "").trim();
+        const userId = Number(userIdValue);
+
+        if (!req.body) {
+            return res.status(400).json({
+                success: false,
+                message: "Current password and new password are required."
+            });
+        }
+
+        const requestBody = req.body || {};
+        const currentPassword = String(requestBody.currentPassword || "");
+        const newPassword = String(requestBody.newPassword || "");
+
+        if (userIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "User id is required."
+            });
+        }
+
+        if (!Number.isInteger(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "User id must be numeric."
+            });
+        }
+
+        if (!currentPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Current password is required."
+            });
+        }
+
+        if (!newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "New password is required."
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "New password must be at least 6 characters."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const userResult = await pool.request()
+            .input("userId", userId)
+            .query(`
+                SELECT
+                    user_id,
+                    [password]
+                FROM users
+                WHERE user_id = @userId;
+            `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found."
+            });
+        }
+
+        const user = userResult.recordset[0];
+
+        if (user.password !== currentPassword) {
+            return res.status(401).json({
+                success: false,
+                message: "Current password is incorrect."
+            });
+        }
+
+        await pool.request()
+            .input("userId", userId)
+            .input("newPassword", newPassword)
+            .query(`
+                UPDATE users
+                SET [password] = @newPassword
+                WHERE user_id = @userId;
+            `);
+
+        res.json({
+            success: true,
+            message: "Password updated successfully."
+        });
+    } catch (error) {
+        console.error("Error updating password:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error updating password",
+            error: error.message
+        });
+    }
+});
+
 // Saves a trip for a logged-in user in the database
 app.post("/api/saved-trips", async (req, res) => {
     try {
