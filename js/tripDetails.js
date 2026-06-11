@@ -59,7 +59,7 @@ function convertServerTripDetailsToFrontendTrip(serverTrip) {
     recommendedGroupSize: Number(serverTrip.recommended_group_size) || 0,
     kosherFriendly: Boolean(serverTrip.kosher_friendly),
     shortDescription: serverTrip.short_description || "",
-    image: normalizeServerImagePath(serverTrip.image_path),
+    image: normalizeServerImagePath(serverTrip.image_path, serverTrip.slug, serverTrip.title),
     tags: Array.isArray(serverTrip.tags) ? serverTrip.tags : interests,
     interests: interests,
     itinerary: normalizeServerItinerary(serverTrip.itinerary),
@@ -70,24 +70,45 @@ function convertServerTripDetailsToFrontendTrip(serverTrip) {
 }
 
 // Converts database image paths into Express static asset paths.
-// Expects values like images/trips/paris.jpg.
-// Returns a root-absolute assets URL for the browser.
-function normalizeServerImagePath(imagePath) {
-  const cleanPath = String(imagePath || "").replace(/^\/+/, "");
+// Expects a database image path plus optional trip slug/title.
+// Returns a root-absolute static URL that matches local trip image names.
+function normalizeServerImagePath(imagePath, slug, title) {
+  const cleanPath = String(imagePath || "").trim().replace(/^\/+/, "");
+  const imageSlug = slug || createImageSlug(title);
+  const fallbackImage = "/assets/images/backgrounds/details-hero.jpg";
 
   if (cleanPath.startsWith("assets/")) {
+    if (cleanPath.startsWith("assets/images/trips/") && imageSlug && !cleanPath.endsWith("/" + imageSlug + ".jpg")) {
+      return "/assets/images/trips/" + imageSlug + ".jpg";
+    }
+
     return "/" + cleanPath;
+  }
+
+  if (cleanPath.startsWith("images/trips/") && imageSlug) {
+    return "/assets/images/trips/" + imageSlug + ".jpg";
   }
 
   if (cleanPath.startsWith("images/")) {
     return "/assets/" + cleanPath;
   }
 
-  if (cleanPath) {
-    return "/assets/images/trips/" + cleanPath;
+  if (imageSlug) {
+    return "/assets/images/trips/" + imageSlug + ".jpg";
   }
 
-  return "";
+  return cleanPath ? "/assets/images/trips/" + cleanPath : fallbackImage;
+}
+
+// Creates a simple image slug from a trip title when the database slug is missing.
+// Expects a trip title string.
+// Returns a kebab-case filename stem.
+function createImageSlug(title) {
+  return String(title || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 // Normalizes server itinerary records for display.
