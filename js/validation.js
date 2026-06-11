@@ -164,8 +164,8 @@ function normalizeStoredValue(value) {
 
 // Handles login form submission.
 // Expects a submit event from the login form.
-// Prevents default submission and shows validation feedback.
-function handleLoginSubmit(event) {
+// Prevents default submission and logs in through the Express API.
+async function handleLoginSubmit(event) {
   event.preventDefault();
 
   const formMessageId = "login-form-message";
@@ -190,29 +190,53 @@ function handleLoginSubmit(event) {
     isValid = false;
   }
 
-  if (isValid) {
+  if (!isValid) {
+    showFormMessage(formMessageId, "Please fix the highlighted fields.", "error");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email: email,
+        password: password
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok || data.success === false) {
+      showFormMessage(formMessageId, data.message || "Server error. Please try again.", "error");
+      return;
+    }
+
     if (window.appStorage) {
       window.appStorage.setCurrentUser({
         isLoggedIn: true,
-        firstName: "Traveler",
-        email: email
+        userId: data.user.userId,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        email: data.user.email
       });
     }
 
     showFormMessage(formMessageId, "Login successful. Redirecting to My Trips...", "success");
 
     setTimeout(function () {
-      window.location.href = "my-trips.html";
+      window.location.href = "/pages/my-trips.html";
     }, 900);
-  } else {
-    showFormMessage(formMessageId, "Please fix the highlighted fields.", "error");
+  } catch (error) {
+    showFormMessage(formMessageId, "Server error. Please try again.", "error");
   }
 }
 
 // Handles signup form submission.
 // Expects a submit event from the signup form.
-// Prevents default submission and shows validation feedback.
-function handleSignupSubmit(event) {
+// Prevents default submission and creates an account through the Express API.
+async function handleSignupSubmit(event) {
   event.preventDefault();
 
   const formMessageId = "signup-form-message";
@@ -249,8 +273,8 @@ function handleSignupSubmit(event) {
   if (password === "") {
     showFieldError("signup-password", "Password is required.");
     isValid = false;
-  } else if (password.length < 8) {
-    showFieldError("signup-password", "Password must be at least 8 characters.");
+  } else if (password.length < 6) {
+    showFieldError("signup-password", "Password must be at least 6 characters.");
     isValid = false;
   }
 
@@ -262,22 +286,48 @@ function handleSignupSubmit(event) {
     isValid = false;
   }
 
-  if (isValid) {
+  if (!isValid) {
+    showFormMessage(formMessageId, "Please fix the highlighted fields.", "error");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        password: password
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok || data.success === false) {
+      showFormMessage(formMessageId, data.message || "Server error. Please try again.", "error");
+      return;
+    }
+
     if (window.appStorage) {
       window.appStorage.setCurrentUser({
         isLoggedIn: true,
-        firstName: firstName,
-        email: email
+        userId: data.user.userId,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        email: data.user.email
       });
     }
 
     showFormMessage(formMessageId, "Account created. Redirecting to Plan a Trip...", "success");
 
     setTimeout(function () {
-      window.location.href = "preferences.html";
+      window.location.href = "/pages/preferences.html";
     }, 900);
-  } else {
-    showFormMessage(formMessageId, "Please fix the highlighted fields.", "error");
+  } catch (error) {
+    showFormMessage(formMessageId, "Server error. Please try again.", "error");
   }
 }
 

@@ -225,6 +225,179 @@ app.post("/api/trips/search", async (req, res) => {
     }
 });
 
+// Creates a user account in the database for the course demo login flow
+app.post("/api/auth/signup", async (req, res) => {
+    try {
+        const firstName = String(req.body.firstName || "").trim();
+        const lastName = String(req.body.lastName || "").trim();
+        const email = String(req.body.email || "").trim().toLowerCase();
+        const password = String(req.body.password || "");
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!firstName) {
+            return res.status(400).json({
+                success: false,
+                message: "First name is required."
+            });
+        }
+
+        if (!lastName) {
+            return res.status(400).json({
+                success: false,
+                message: "Last name is required."
+            });
+        }
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required."
+            });
+        }
+
+        if (!emailPattern.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: "Enter a valid email address."
+            });
+        }
+
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                message: "Password is required."
+            });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 6 characters."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const existingUserResult = await pool.request()
+            .input("email", email)
+            .query(`
+                SELECT user_id
+                FROM users
+                WHERE email = @email;
+            `);
+
+        if (existingUserResult.recordset.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: "Email is already registered."
+            });
+        }
+
+        const insertResult = await pool.request()
+            .input("firstName", firstName)
+            .input("lastName", lastName)
+            .input("email", email)
+            .input("password", password)
+            .query(`
+                INSERT INTO users (first_name, last_name, email, [password])
+                OUTPUT INSERTED.user_id
+                VALUES (@firstName, @lastName, @email, @password);
+            `);
+
+        res.json({
+            success: true,
+            message: "Account created successfully.",
+            user: {
+                userId: insertResult.recordset[0].user_id,
+                firstName: firstName,
+                lastName: lastName,
+                email: email
+            }
+        });
+    } catch (error) {
+        console.error("Error creating account:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error creating account",
+            error: error.message
+        });
+    }
+});
+
+// Logs in a user by checking the database email and plain-text demo password
+app.post("/api/auth/login", async (req, res) => {
+    try {
+        const email = String(req.body.email || "").trim().toLowerCase();
+        const password = String(req.body.password || "");
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required."
+            });
+        }
+
+        if (!emailPattern.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: "Enter a valid email address."
+            });
+        }
+
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                message: "Password is required."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const userResult = await pool.request()
+            .input("email", email)
+            .query(`
+                SELECT
+                    user_id,
+                    first_name,
+                    last_name,
+                    email,
+                    [password]
+                FROM users
+                WHERE email = @email;
+            `);
+
+        const user = userResult.recordset[0];
+
+        if (!user || user.password !== password) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid email or password."
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Login successful.",
+            user: {
+                userId: user.user_id,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                email: user.email
+            }
+        });
+    } catch (error) {
+        console.error("Error logging in:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error logging in",
+            error: error.message
+        });
+    }
+});
+
 // Get one trip with itinerary, interests, and reviews from the database
 app.get("/api/trips/:id", async (req, res) => {
     try {
