@@ -35,8 +35,8 @@ function updateNavigationForLoginState() {
     return;
   }
 
-  const loginLink = siteNavigationList.querySelector('a[href="login.html"], a[href="pages/login.html"], .nav-greeting');
-  const signupLink = siteNavigationList.querySelector('a[href="signup.html"], a[href="pages/signup.html"], .logout-link');
+  const loginLink = siteNavigationList.querySelector('a[href="/pages/login.html"], a[href="login.html"], a[href="pages/login.html"], .nav-greeting');
+  const signupLink = siteNavigationList.querySelector('a[href="/pages/signup.html"], a[href="signup.html"], a[href="pages/signup.html"], .logout-link');
 
   if (loginLink) {
     loginLink.textContent = "Hi, " + currentUser.firstName;
@@ -67,6 +67,5 @@ window.updateNavigationForLoginState = updateNavigationForLoginState;
 // Expects no input.
 // Sends users back to the real homepage from root or page files.
 function redirectAfterLogout() {
-  const isRootPage = !window.location.pathname.includes("/pages/");
-  window.location.href = isRootPage ? "index.html" : "../index.html";
+  window.location.href = "/";
 }
