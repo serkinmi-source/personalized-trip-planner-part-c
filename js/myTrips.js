@@ -77,7 +77,7 @@ async function fetchSavedTripsForUser(userId) {
 function convertServerSavedTripToFrontendTrip(serverTrip) {
   return {
     savedId: serverTrip.saved_id,
-    status: serverTrip.status || "",
+    status: String(serverTrip.status || "").toLowerCase(),
     savedAt: serverTrip.saved_at || "",
     id: Number(serverTrip.trip_id),
     slug: serverTrip.slug || "",
@@ -233,6 +233,34 @@ function renderSavedTripCards(savedTrips) {
   });
 }
 
+// Converts a saved trip status into a readable label.
+// Expects a status value from the database.
+// Returns display text for the status dropdown.
+function formatStatusLabel(status) {
+  const statusLabels = {
+    planned: "Planned",
+    favorite: "Favorite",
+    visited: "Visited"
+  };
+
+  return statusLabels[status] || "Planned";
+}
+
+// Builds the status dropdown for one saved trip card.
+// Expects a saved trip object with savedId and status.
+// Returns select markup with the current status selected.
+function renderStatusSelect(trip) {
+  const statuses = ["planned", "favorite", "visited"];
+  const currentStatus = statuses.includes(trip.status) ? trip.status : "planned";
+
+  return '<label for="saved-trip-status-' + trip.savedId + '">Status</label>' +
+    '<select id="saved-trip-status-' + trip.savedId + '" class="saved-trip-status-select" data-saved-id="' + trip.savedId + '">' +
+      statuses.map(function (status) {
+        return '<option value="' + status + '"' + (status === currentStatus ? ' selected' : '') + '>' + formatStatusLabel(status) + '</option>';
+      }).join("") +
+    '</select>';
+}
+
 // Creates one saved trip card.
 // Expects a trip object from the saved trips API.
 // Returns an article element with View Details and Remove actions.
@@ -255,26 +283,121 @@ function createSavedTripCard(trip) {
         '<div><dt>Duration</dt><dd>' + trip.durationDays + ' days</dd></div>' +
         '<div><dt>Rating</dt><dd>' + trip.rating + '</dd></div>' +
       '</dl>' +
+      '<div class="form-group">' +
+        renderStatusSelect(trip) +
+      '</div>' +
       '<div class="trip-card-actions">' +
         '<a class="btn btn-primary" href="' + detailsUrl + '">View Details</a>' +
         '<button class="btn btn-secondary remove-trip-button" type="button">Remove</button>' +
       '</div>' +
     '</div>';
 
+  const statusSelect = card.querySelector(".saved-trip-status-select");
+
+  if (statusSelect) {
+    statusSelect.addEventListener("change", function () {
+      updateSavedTripStatus(trip.savedId, statusSelect.value);
+    });
+  }
+
   const removeButton = card.querySelector(".remove-trip-button");
   removeButton.addEventListener("click", function () {
-    removeSavedTrip(trip.id, trip.title);
+    removeSavedTrip(trip.savedId, trip.title);
   });
 
   return card;
 }
 
-// Shows a temporary message for remove until database delete is implemented.
-// Expects a trip id string and optional trip title.
-// Keeps the existing button without changing saved-trip database data.
-function removeSavedTrip(tripId, tripTitle) {
-  myTripsFeedbackMessage = "Removing saved trips is not connected yet.";
-  renderMyTripsPage();
+// Updates one saved trip status in the database.
+// Expects a saved trip id and one allowed status value.
+// Re-fetches My Trips after a successful update.
+async function updateSavedTripStatus(savedId, status) {
+  const currentUser = getCurrentUserForMyTrips();
+  const allowedStatuses = ["planned", "favorite", "visited"];
+
+  if (!currentUser) {
+    myTripsFeedbackMessage = "Please log in to update saved trips.";
+    showGuestState();
+    return;
+  }
+
+  if (!allowedStatuses.includes(status)) {
+    myTripsFeedbackMessage = "Choose a valid trip status.";
+    renderMyTripsPage();
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/saved-trips/" + encodeURIComponent(savedId) + "/status", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId: Number(currentUser.userId),
+        status: status
+      })
+    });
+    const data = await response.json().catch(function () {
+      return {};
+    });
+
+    if (!response.ok || data.success === false) {
+      myTripsFeedbackMessage = data.message || "Trip status could not be updated.";
+      renderMyTripsPage();
+      return;
+    }
+
+    myTripsFeedbackMessage = data.message || "Trip status updated.";
+    renderMyTripsPage();
+  } catch (error) {
+    myTripsFeedbackMessage = "Trip status could not be updated. Please try again.";
+    renderMyTripsPage();
+  }
+}
+
+// Removes a saved trip from the database after confirmation.
+// Expects a saved trip id and optional trip title.
+// Re-fetches My Trips after a successful delete.
+async function removeSavedTrip(savedId, tripTitle) {
+  const currentUser = getCurrentUserForMyTrips();
+
+  if (!currentUser) {
+    myTripsFeedbackMessage = "Please log in to remove saved trips.";
+    showGuestState();
+    return;
+  }
+
+  if (!window.confirm("Remove this trip from My Trips?")) {
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/saved-trips/" + encodeURIComponent(savedId), {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId: Number(currentUser.userId)
+      })
+    });
+    const data = await response.json().catch(function () {
+      return {};
+    });
+
+    if (!response.ok || data.success === false) {
+      myTripsFeedbackMessage = data.message || "Trip could not be removed.";
+      renderMyTripsPage();
+      return;
+    }
+
+    myTripsFeedbackMessage = data.message || (tripTitle || "Trip") + " removed from My Trips.";
+    renderMyTripsPage();
+  } catch (error) {
+    myTripsFeedbackMessage = "Trip could not be removed. Please try again.";
+    renderMyTripsPage();
+  }
 }
 
 // Builds the My Trips success feedback markup.

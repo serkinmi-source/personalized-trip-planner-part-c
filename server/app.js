@@ -627,6 +627,215 @@ app.get("/api/users/:userId/saved-trips", async (req, res) => {
     }
 });
 
+// Updates the status for one saved trip owned by a user
+app.put("/api/saved-trips/:savedId/status", async (req, res) => {
+    try {
+        const savedIdValue = String(req.params.savedId || "").trim();
+        const userIdValue = req.body.userId;
+        const status = String(req.body.status || "").trim().toLowerCase();
+        const savedId = Number(savedIdValue);
+        const userId = Number(userIdValue);
+        const allowedStatuses = ["planned", "favorite", "visited"];
+
+        if (savedIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "Saved trip id is required."
+            });
+        }
+
+        if (!Number.isInteger(savedId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Saved trip id must be numeric."
+            });
+        }
+
+        if (userIdValue === undefined || userIdValue === null || userIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "User id is required."
+            });
+        }
+
+        if (!Number.isInteger(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "User id must be numeric."
+            });
+        }
+
+        if (!status) {
+            return res.status(400).json({
+                success: false,
+                message: "Status is required."
+            });
+        }
+
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: "Status must be planned, favorite, or visited."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const savedTripResult = await pool.request()
+            .input("savedId", savedId)
+            .query(`
+                SELECT
+                    saved_id,
+                    user_id,
+                    trip_id,
+                    status
+                FROM saved_trips
+                WHERE saved_id = @savedId;
+            `);
+
+        if (savedTripResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Saved trip was not found."
+            });
+        }
+
+        const savedTrip = savedTripResult.recordset[0];
+
+        if (savedTrip.user_id !== userId) {
+            return res.status(403).json({
+                success: false,
+                message: "This saved trip does not belong to the current user."
+            });
+        }
+
+        const updateResult = await pool.request()
+            .input("savedId", savedId)
+            .input("userId", userId)
+            .input("status", status)
+            .query(`
+                UPDATE saved_trips
+                SET status = @status
+                OUTPUT
+                    INSERTED.saved_id,
+                    INSERTED.user_id,
+                    INSERTED.trip_id,
+                    INSERTED.status
+                WHERE saved_id = @savedId
+                    AND user_id = @userId;
+            `);
+
+        const updatedSavedTrip = updateResult.recordset[0];
+
+        res.json({
+            success: true,
+            message: "Trip status updated.",
+            savedTrip: {
+                savedId: updatedSavedTrip.saved_id,
+                userId: updatedSavedTrip.user_id,
+                tripId: updatedSavedTrip.trip_id,
+                status: updatedSavedTrip.status
+            }
+        });
+    } catch (error) {
+        console.error("Error updating saved trip status:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error updating saved trip status",
+            error: error.message
+        });
+    }
+});
+
+// Removes one saved trip owned by a user
+app.delete("/api/saved-trips/:savedId", async (req, res) => {
+    try {
+        const savedIdValue = String(req.params.savedId || "").trim();
+        const userIdValue = req.body.userId;
+        const savedId = Number(savedIdValue);
+        const userId = Number(userIdValue);
+
+        if (savedIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "Saved trip id is required."
+            });
+        }
+
+        if (!Number.isInteger(savedId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Saved trip id must be numeric."
+            });
+        }
+
+        if (userIdValue === undefined || userIdValue === null || userIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "User id is required."
+            });
+        }
+
+        if (!Number.isInteger(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "User id must be numeric."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const savedTripResult = await pool.request()
+            .input("savedId", savedId)
+            .query(`
+                SELECT
+                    saved_id,
+                    user_id
+                FROM saved_trips
+                WHERE saved_id = @savedId;
+            `);
+
+        if (savedTripResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Saved trip was not found."
+            });
+        }
+
+        const savedTrip = savedTripResult.recordset[0];
+
+        if (savedTrip.user_id !== userId) {
+            return res.status(403).json({
+                success: false,
+                message: "This saved trip does not belong to the current user."
+            });
+        }
+
+        await pool.request()
+            .input("savedId", savedId)
+            .input("userId", userId)
+            .query(`
+                DELETE FROM saved_trips
+                WHERE saved_id = @savedId
+                    AND user_id = @userId;
+            `);
+
+        res.json({
+            success: true,
+            message: "Trip removed from My Trips."
+        });
+    } catch (error) {
+        console.error("Error removing saved trip:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error removing saved trip",
+            error: error.message
+        });
+    }
+});
+
 // Get one trip with itinerary, interests, and reviews from the database
 app.get("/api/trips/:id", async (req, res) => {
     try {
