@@ -59,7 +59,7 @@ function convertServerTripDetailsToFrontendTrip(serverTrip) {
     recommendedGroupSize: Number(serverTrip.recommended_group_size) || 0,
     kosherFriendly: Boolean(serverTrip.kosher_friendly),
     shortDescription: serverTrip.short_description || "",
-    image: normalizeServerImagePath(serverTrip.image_path, serverTrip.slug, serverTrip.title),
+    image: normalizeServerImagePath(serverTrip.image_path, serverTrip.slug, serverTrip.title, serverTrip.city),
     tags: Array.isArray(serverTrip.tags) ? serverTrip.tags : interests,
     interests: interests,
     itinerary: normalizeServerItinerary(serverTrip.itinerary),
@@ -72,10 +72,20 @@ function convertServerTripDetailsToFrontendTrip(serverTrip) {
 // Converts database image paths into Express static asset paths.
 // Expects a database image path plus optional trip slug/title.
 // Returns a root-absolute static URL that matches local trip image names.
-function normalizeServerImagePath(imagePath, slug, title) {
+function normalizeServerImagePath(imagePath, slug, title, city) {
   const cleanPath = String(imagePath || "").trim().replace(/^\/+/, "");
+  const destinationImage = getDestinationImagePath(cleanPath, slug, title, city);
+  const localTripImage = getLocalTripImagePath(cleanPath, slug, title, city);
   const imageSlug = slug || createImageSlug(title);
   const fallbackImage = "/assets/images/backgrounds/details-hero.jpg";
+
+  if (destinationImage) {
+    return destinationImage;
+  }
+
+  if (localTripImage) {
+    return localTripImage;
+  }
 
   if (cleanPath.startsWith("assets/")) {
     if (cleanPath.startsWith("assets/images/trips/") && imageSlug && !cleanPath.endsWith("/" + imageSlug + ".jpg")) {
@@ -98,6 +108,90 @@ function normalizeServerImagePath(imagePath, slug, title) {
   }
 
   return cleanPath ? "/assets/images/trips/" + cleanPath : fallbackImage;
+}
+
+// Maps database-only destination trips to real local image files.
+// Expects image path and optional trip identity fields.
+// Returns a root-absolute image path or an empty string.
+function getDestinationImagePath(imagePath, slug, title, city) {
+  const destinationImages = {
+    vienna: "vienna.jpg",
+    berlin: "berlin.jpg",
+    budapest: "budapest.jpg",
+    zurich: "zurich.jpg",
+    interlaken: "interlaken.jpg",
+    miami: "miami.jpg",
+    istanbul: "istanbul.jpg"
+  };
+  const candidates = [
+    createImageSlug(city),
+    createImageSlug(title),
+    createImageSlug(slug),
+    createImageSlug(getFileNameWithoutExtension(imagePath))
+  ].filter(Boolean);
+  const destinationKey = Object.keys(destinationImages).find(function (destination) {
+    return candidates.some(function (candidate) {
+      return candidate === destination || candidate.includes(destination);
+    });
+  });
+
+  return destinationKey ? "/assets/images/trips/" + destinationImages[destinationKey] : "";
+}
+
+// Finds a matching local trip image from data.js when database filenames differ.
+// Expects the database image path and optional trip identity fields.
+// Returns a root-absolute image path or an empty string.
+function getLocalTripImagePath(imagePath, slug, title, city) {
+  if (!Array.isArray(window.tripPackages)) {
+    return "";
+  }
+
+  const candidates = [
+    createImageSlug(slug),
+    createImageSlug(title),
+    createImageSlug(city),
+    createImageSlug(getFileNameWithoutExtension(imagePath))
+  ].filter(Boolean);
+
+  const localTrip = window.tripPackages.find(function (trip) {
+    const localValues = [
+      createImageSlug(trip.id),
+      createImageSlug(trip.title),
+      createImageSlug(trip.city),
+      createImageSlug(getFileNameWithoutExtension(trip.image))
+    ];
+
+    return candidates.some(function (candidate) {
+      return localValues.includes(candidate);
+    });
+  });
+
+  return localTrip && localTrip.image ? normalizeLocalAssetPath(localTrip.image) : "";
+}
+
+// Converts a local data.js image path into an Express static URL.
+// Expects paths such as ../assets/images/trips/paris-romantic-escape.jpg.
+// Returns /assets/images/trips/paris-romantic-escape.jpg.
+function normalizeLocalAssetPath(imagePath) {
+  const cleanPath = String(imagePath || "").trim().replace(/^(\.\.\/)+/, "").replace(/^\/+/, "");
+
+  if (cleanPath.startsWith("assets/")) {
+    return "/" + cleanPath;
+  }
+
+  if (cleanPath.startsWith("images/")) {
+    return "/assets/" + cleanPath;
+  }
+
+  return cleanPath ? "/assets/images/trips/" + cleanPath : "";
+}
+
+// Reads the filename stem from an image path.
+// Expects any path-like string.
+// Returns the filename without its extension.
+function getFileNameWithoutExtension(imagePath) {
+  const fileName = String(imagePath || "").split("/").pop() || "";
+  return fileName.replace(/\.[^.]+$/, "");
 }
 
 // Creates a simple image slug from a trip title when the database slug is missing.
@@ -173,9 +267,10 @@ function escapeHtml(value) {
 function renderTripDetails(trip) {
   const reviews = getCombinedTripReviews(trip);
   const ratingSummary = calculateRatingSummary(reviews);
+  const imageUrl = resolveTripImagePath(trip);
 
   document.title = trip.title + " | Personalized Trip Planner";
-  renderHero(trip, ratingSummary);
+  renderHero(trip, ratingSummary, imageUrl);
 
   const content = document.getElementById("trip-details-content");
 
@@ -187,7 +282,7 @@ function renderTripDetails(trip) {
     '<div class="trip-details-layout">' +
       '<div class="trip-main">' +
         '<section class="detail-section trip-overview-section">' +
-          '<img class="trip-detail-image" src="' + trip.image + '" alt="' + trip.title + ' in ' + trip.city + ', ' + trip.country + '">' +
+          '<img class="trip-detail-image" src="' + imageUrl + '" alt="' + trip.title + ' in ' + trip.city + ', ' + trip.country + '" onerror="this.onerror=null;this.src=\'/assets/images/backgrounds/details-hero.jpg\';">' +
           '<div class="trip-detail-actions">' +
             '<button class="btn btn-primary" id="save-trip-button" type="button">♡ Save Trip</button>' +
             '<a class="btn btn-secondary" href="/pages/preferences.html">Back to Plan a Trip</a>' +
@@ -196,7 +291,7 @@ function renderTripDetails(trip) {
         '</section>' +
         '<section class="detail-section">' +
           '<h2>Gallery</h2>' +
-          '<div class="visual-gallery">' + renderGallery(trip) + '</div>' +
+          '<div class="visual-gallery">' + renderGallery(trip, imageUrl) + '</div>' +
         '</section>' +
         '<section class="detail-section">' +
           '<h2>Itinerary</h2>' +
@@ -272,10 +367,17 @@ function renderTripDetails(trip) {
   initializeReviewForm(trip);
 }
 
+// Gets the shared trip image URL for hero, main image, and gallery.
+// Expects a trip object with a resolved image field.
+// Returns a usable image URL or the details fallback image.
+function resolveTripImagePath(trip) {
+  return trip && trip.image ? trip.image : "/assets/images/backgrounds/details-hero.jpg";
+}
+
 // Renders the top hero text for the selected trip.
-// Expects a trip object and calculated rating summary.
+// Expects a trip object, calculated rating summary, and resolved image URL.
 // Updates the existing hero content container.
-function renderHero(trip, ratingSummary) {
+function renderHero(trip, ratingSummary, imageUrl) {
   const hero = document.getElementById("trip-hero-content");
   const heroSection = document.querySelector(".trip-detail-hero");
 
@@ -284,7 +386,8 @@ function renderHero(trip, ratingSummary) {
   }
 
   if (heroSection) {
-    heroSection.style.backgroundImage = 'url("' + trip.image + '")';
+    heroSection.style.backgroundImage =
+      "linear-gradient(90deg, rgba(19, 35, 48, 0.72), rgba(31, 41, 51, 0.34), rgba(31, 41, 51, 0.12)), url(" + JSON.stringify(imageUrl) + ")";
   }
 
   hero.innerHTML =
@@ -323,27 +426,27 @@ function renderItinerary(itinerary) {
 // Renders the visual gallery for the selected trip.
 // Expects a trip object with a gallery array, or falls back to the main image.
 // Returns responsive image-card markup.
-function renderGallery(trip) {
-  const gallery = getTripGallery(trip);
+function renderGallery(trip, imageUrl) {
+  const gallery = getTripGallery(trip, imageUrl);
 
   return gallery.map(function (image) {
     return '<figure class="gallery-item">' +
-      '<img src="' + image.src + '" alt="' + escapeHtml(image.alt) + '">' +
+      '<img src="' + image.src + '" alt="' + escapeHtml(image.alt) + '" onerror="this.onerror=null;this.src=\'/assets/images/backgrounds/details-hero.jpg\';">' +
     '</figure>';
   }).join("");
 }
 
 // Gets a safe gallery array for a trip details page.
-// Expects a trip object.
+// Expects a trip object and resolved image URL.
 // Returns at least the main trip image when gallery data is missing.
-function getTripGallery(trip) {
+function getTripGallery(trip, imageUrl) {
   if (trip && Array.isArray(trip.gallery) && trip.gallery.length > 0) {
     return trip.gallery;
   }
 
   return [
     {
-      src: trip && trip.image ? trip.image : "",
+      src: imageUrl || "/assets/images/backgrounds/details-hero.jpg",
       alt: trip ? trip.title + " in " + trip.city + ", " + trip.country : "Trip image"
     }
   ];

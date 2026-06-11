@@ -90,7 +90,7 @@ function convertServerSavedTripToFrontendTrip(serverTrip) {
     recommendedGroupSize: serverTrip.recommended_group_size || "",
     kosherFriendly: Boolean(serverTrip.kosher_friendly),
     shortDescription: serverTrip.short_description || "",
-    image: normalizeServerImagePath(serverTrip.image_path, serverTrip.slug, serverTrip.title),
+    image: normalizeServerImagePath(serverTrip.image_path, serverTrip.slug, serverTrip.title, serverTrip.city),
     averageRating: Number(serverTrip.average_rating),
     reviewCount: Number(serverTrip.review_count) || 0,
     rating: formatSavedTripRating(serverTrip)
@@ -100,10 +100,20 @@ function convertServerSavedTripToFrontendTrip(serverTrip) {
 // Converts database image paths into browser-ready static asset paths.
 // Expects a database image path plus optional trip slug/title.
 // Returns a root-absolute static URL that matches local trip image names.
-function normalizeServerImagePath(imagePath, slug, title) {
+function normalizeServerImagePath(imagePath, slug, title, city) {
   const cleanPath = String(imagePath || "").trim().replace(/^\/+/, "");
+  const destinationImage = getDestinationImagePath(cleanPath, slug, title, city);
+  const localTripImage = getLocalTripImagePath(cleanPath, slug, title, city);
   const imageSlug = slug || createImageSlug(title);
   const fallbackImage = "/assets/images/backgrounds/preferences-hero.jpg";
+
+  if (destinationImage) {
+    return destinationImage;
+  }
+
+  if (localTripImage) {
+    return localTripImage;
+  }
 
   if (cleanPath.startsWith("assets/")) {
     if (cleanPath.startsWith("assets/images/trips/") && imageSlug && !cleanPath.endsWith("/" + imageSlug + ".jpg")) {
@@ -126,6 +136,90 @@ function normalizeServerImagePath(imagePath, slug, title) {
   }
 
   return cleanPath !== "" ? "/assets/images/trips/" + cleanPath : fallbackImage;
+}
+
+// Maps database-only destination trips to real local image files.
+// Expects image path and optional trip identity fields.
+// Returns a root-absolute image path or an empty string.
+function getDestinationImagePath(imagePath, slug, title, city) {
+  const destinationImages = {
+    vienna: "vienna.jpg",
+    berlin: "berlin.jpg",
+    budapest: "budapest.jpg",
+    zurich: "zurich.jpg",
+    interlaken: "interlaken.jpg",
+    miami: "miami.jpg",
+    istanbul: "istanbul.jpg"
+  };
+  const candidates = [
+    createImageSlug(city),
+    createImageSlug(title),
+    createImageSlug(slug),
+    createImageSlug(getFileNameWithoutExtension(imagePath))
+  ].filter(Boolean);
+  const destinationKey = Object.keys(destinationImages).find(function (destination) {
+    return candidates.some(function (candidate) {
+      return candidate === destination || candidate.includes(destination);
+    });
+  });
+
+  return destinationKey ? "/assets/images/trips/" + destinationImages[destinationKey] : "";
+}
+
+// Finds a matching local trip image from data.js when database filenames differ.
+// Expects the database image path and optional trip identity fields.
+// Returns a root-absolute image path or an empty string.
+function getLocalTripImagePath(imagePath, slug, title, city) {
+  if (!Array.isArray(window.tripPackages)) {
+    return "";
+  }
+
+  const candidates = [
+    createImageSlug(slug),
+    createImageSlug(title),
+    createImageSlug(city),
+    createImageSlug(getFileNameWithoutExtension(imagePath))
+  ].filter(Boolean);
+
+  const localTrip = window.tripPackages.find(function (trip) {
+    const localValues = [
+      createImageSlug(trip.id),
+      createImageSlug(trip.title),
+      createImageSlug(trip.city),
+      createImageSlug(getFileNameWithoutExtension(trip.image))
+    ];
+
+    return candidates.some(function (candidate) {
+      return localValues.includes(candidate);
+    });
+  });
+
+  return localTrip && localTrip.image ? normalizeLocalAssetPath(localTrip.image) : "";
+}
+
+// Converts a local data.js image path into an Express static URL.
+// Expects paths such as ../assets/images/trips/paris-romantic-escape.jpg.
+// Returns /assets/images/trips/paris-romantic-escape.jpg.
+function normalizeLocalAssetPath(imagePath) {
+  const cleanPath = String(imagePath || "").trim().replace(/^(\.\.\/)+/, "").replace(/^\/+/, "");
+
+  if (cleanPath.startsWith("assets/")) {
+    return "/" + cleanPath;
+  }
+
+  if (cleanPath.startsWith("images/")) {
+    return "/assets/" + cleanPath;
+  }
+
+  return cleanPath ? "/assets/images/trips/" + cleanPath : "";
+}
+
+// Reads the filename stem from an image path.
+// Expects any path-like string.
+// Returns the filename without its extension.
+function getFileNameWithoutExtension(imagePath) {
+  const fileName = String(imagePath || "").split("/").pop() || "";
+  return fileName.replace(/\.[^.]+$/, "");
 }
 
 // Creates a simple image slug from a trip title when the database slug is missing.
@@ -292,7 +386,7 @@ function createSavedTripCard(trip) {
 
   card.innerHTML =
     '<a class="trip-card-image-link" href="' + detailsUrl + '">' +
-      '<img class="trip-card-image" src="' + trip.image + '" alt="' + trip.title + ' in ' + trip.city + ', ' + trip.country + '">' +
+      '<img class="trip-card-image" src="' + trip.image + '" alt="' + trip.title + ' in ' + trip.city + ', ' + trip.country + '" onerror="this.onerror=null;this.src=\'/assets/images/backgrounds/preferences-hero.jpg\';">' +
     '</a>' +
     '<div class="trip-card-body">' +
       '<p class="placeholder-label">' + trip.tripType + '</p>' +
