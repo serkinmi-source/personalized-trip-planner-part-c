@@ -284,7 +284,7 @@ function handleSignupSubmit(event) {
 // Handles trip preferences form submission.
 // Expects a submit event from the preferences form.
 // Prevents default submission, validates fields, and renders trip matches on the same page.
-function handlePreferencesSubmit(event) {
+async function handlePreferencesSubmit(event) {
   event.preventDefault();
 
   const formMessageId = "preferences-form-message";
@@ -359,15 +359,17 @@ function handlePreferencesSubmit(event) {
     submitButton.disabled = true;
   }
 
-  if (window.renderRecommendationsFromPreferences) {
-    window.renderRecommendationsFromPreferences(preferences, {
-      isLastSearch: false,
-      shouldScroll: true
-    });
-  }
-
-  if (submitButton) {
-    submitButton.disabled = false;
+  try {
+    if (window.renderRecommendationsFromPreferences) {
+      await window.renderRecommendationsFromPreferences(preferences, {
+        isLastSearch: false,
+        shouldScroll: true
+      });
+    }
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
   }
 }
 

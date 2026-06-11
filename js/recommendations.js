@@ -1,13 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
   initializeSaveModal();
   initializeRecommendationFilters();
-
-  if (!Array.isArray(window.tripPackages)) {
-    showStartFromPreferencesState("Trip data is not available yet.");
-    updateResultsMessage("Trip data is not available yet.");
-    return;
-  }
-
   applyStoredPreferences();
 });
 
@@ -46,7 +39,7 @@ function buildFiltersFromPreferences(preferences) {
 }
 
 // Applies saved Plan a Trip preferences and renders matching packages.
-// Expects window.tripPackages to be available.
+// Expects sessionStorage preferences from the last valid search.
 // Shows an intro state when no preferences were submitted yet.
 function applyStoredPreferences() {
   const storedPreferences = getStoredPreferences();
@@ -65,11 +58,11 @@ function applyStoredPreferences() {
 
 // Renders recommendation cards from a preferences object.
 // Expects saved or freshly submitted Plan a Trip values.
-// Updates the results panel, summary, filters, and trip cards without changing pages.
-function renderRecommendationsFromPreferences(preferences, options) {
+// Fetches matches from the Express API and updates the results panel without changing pages.
+async function renderRecommendationsFromPreferences(preferences, options) {
   const grid = document.getElementById("recommendations-grid");
 
-  if (!grid || !Array.isArray(window.tripPackages)) {
+  if (!grid) {
     return;
   }
 
@@ -77,22 +70,131 @@ function renderRecommendationsFromPreferences(preferences, options) {
   showSearchSummary(preferences, Boolean(options && options.isLastSearch));
   resetRecommendationFilters();
   showRecommendationFilters();
+  updateResultsMessage("Loading trip matches...");
+  grid.innerHTML = "";
 
-  const filters = buildFiltersFromPreferences(preferences);
-  const matchingTrips = getRankedRecommendations(filters);
-  currentRecommendationTrips = matchingTrips;
+  try {
+    const matchingTrips = await fetchTripMatches(preferences);
+    currentRecommendationTrips = matchingTrips;
+    currentRecommendationScores = {};
 
-  if (matchingTrips.length === 0) {
-    showEmptyState("No trips match your current trip type, budget, and duration. Try increasing your budget or adjusting your duration.");
-    updateResultsMessage("No trips match your current trip type, budget, and duration. Try increasing your budget or adjusting your duration.");
-    return;
+    matchingTrips.forEach(function (trip, index) {
+      currentRecommendationScores[trip.id] = matchingTrips.length - index;
+    });
+
+    if (matchingTrips.length === 0) {
+      showEmptyState("No trips match your current trip type, budget, and duration. Try increasing your budget or adjusting your duration.");
+      updateResultsMessage("No trips match your current trip type, budget, and duration. Try increasing your budget or adjusting your duration.");
+      return;
+    }
+
+    renderFilteredTripCards();
+
+    if (options && options.shouldScroll) {
+      scrollToResultsPanel();
+    }
+  } catch (error) {
+    showEmptyState("Trip matches could not be loaded. Please try again.");
+    updateResultsMessage("Trip matches could not be loaded. Please try again.");
+  }
+}
+
+// Requests trip matches from the Express API.
+// Expects the validated Plan a Trip preferences object.
+// Returns trip objects converted into the format used by the existing card renderer.
+async function fetchTripMatches(preferences) {
+  const response = await fetch("/api/trips/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(buildSearchRequestBody(preferences))
+  });
+
+  if (!response.ok) {
+    throw new Error("Trip search request failed.");
   }
 
-  renderFilteredTripCards();
+  const result = await response.json();
+  const trips = Array.isArray(result.trips) ? result.trips : [];
 
-  if (options && options.shouldScroll) {
-    scrollToResultsPanel();
+  return trips.map(convertServerTripToFrontendTrip);
+}
+
+// Builds the request body expected by POST /api/trips/search.
+// Expects validated preferences from validation.js.
+// Returns plain JSON-safe values for the server.
+function buildSearchRequestBody(preferences) {
+  return {
+    tripType: preferences.tripType,
+    budget: Number(preferences.budget),
+    durationDays: Number(preferences.durationDays),
+    kosherFriendly: Boolean(preferences.kosherFriendly),
+    interests: Array.isArray(preferences.interests) ? preferences.interests : []
+  };
+}
+
+// Converts a SQL Server trip row into the frontend trip-card shape.
+// Expects snake_case fields returned by the Express API.
+// Returns camelCase fields used by the existing recommendation card renderer.
+function convertServerTripToFrontendTrip(serverTrip) {
+  return {
+    id: Number(serverTrip.trip_id),
+    slug: serverTrip.slug || "",
+    title: serverTrip.title || "Trip package",
+    city: serverTrip.city || "",
+    country: serverTrip.country || "",
+    tripType: serverTrip.trip_type || "",
+    tags: normalizeServerList(serverTrip.tags).length > 0
+      ? normalizeServerList(serverTrip.tags)
+      : [serverTrip.trip_type, serverTrip.city, serverTrip.country].filter(Boolean),
+    estimatedPrice: Number(serverTrip.estimated_price) || 0,
+    durationDays: Number(serverTrip.duration_days) || 0,
+    recommendedGroupSize: serverTrip.recommended_group_size || "",
+    kosherFriendly: Boolean(serverTrip.kosher_friendly),
+    averageRating: Number(serverTrip.average_rating),
+    reviewCount: Number(serverTrip.review_count) || 0,
+    image: normalizeServerImagePath(serverTrip.image_path),
+    shortDescription: serverTrip.short_description || ""
+  };
+}
+
+// Normalizes optional SQL list fields such as tags.
+// Expects an array, comma-separated string, or missing value.
+// Returns an array that is safe for tag rendering.
+function normalizeServerList(value) {
+  if (Array.isArray(value)) {
+    return value;
   }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    return value.split(",").map(function (item) {
+      return item.trim();
+    }).filter(Boolean);
+  }
+
+  return [];
+}
+
+// Converts database image paths into browser-ready static asset paths.
+// Expects paths such as images/trips/paris.jpg.
+// Returns paths such as /assets/images/trips/paris.jpg.
+function normalizeServerImagePath(imagePath) {
+  const cleanPath = String(imagePath || "").trim().replace(/^\/+/, "");
+
+  if (cleanPath.startsWith("assets/")) {
+    return "/" + cleanPath;
+  }
+
+  if (cleanPath.startsWith("images/")) {
+    return "/assets/" + cleanPath;
+  }
+
+  if (cleanPath !== "") {
+    return "/assets/images/trips/" + cleanPath;
+  }
+
+  return "/assets/images/backgrounds/preferences-hero.jpg";
 }
 
 // Formats visible trip prices in dollars.
@@ -107,6 +209,10 @@ function formatPrice(price) {
 // Returns up to 10 trips ordered by customer rating plus interest matches.
 function getRankedRecommendations(filters) {
   currentRecommendationScores = {};
+
+  if (!Array.isArray(window.tripPackages)) {
+    return [];
+  }
 
   return window.tripPackages
     .map(function (trip) {
@@ -179,6 +285,13 @@ function sortScoredTrips(first, second) {
 // Expects one trip object.
 // Keeps recommendation ranking aligned with Trip Details.
 function getTripRatingSummary(trip) {
+  if (Number.isFinite(Number(trip.averageRating)) && Number(trip.reviewCount) > 0) {
+    return {
+      average: Number(trip.averageRating),
+      count: Number(trip.reviewCount)
+    };
+  }
+
   if (window.appStorage && window.appStorage.getTripRatingSummary) {
     return window.appStorage.getTripRatingSummary(trip);
   }
@@ -393,7 +506,7 @@ function createTripCard(trip, index) {
   card.className = "trip-card recommendation-card";
   card.style.animationDelay = Math.min(index * 0.035, 0.28) + "s";
 
-  const detailsUrl = "trip-details.html?id=" + encodeURIComponent(trip.id);
+  const detailsUrl = "/pages/trip-details.html?id=" + encodeURIComponent(trip.id);
   const ratingText = formatTripRatingSummary(trip);
 
   card.innerHTML =
@@ -576,7 +689,8 @@ function initializeSaveModal() {
 // Expects a trip object.
 // Returns HTML for tags, including Kosher-friendly when relevant.
 function createTagsMarkup(trip, limit) {
-  const tags = trip.kosherFriendly ? trip.tags.concat("Kosher-friendly") : trip.tags;
+  const tripTags = Array.isArray(trip.tags) ? trip.tags : [];
+  const tags = trip.kosherFriendly ? tripTags.concat("Kosher-friendly") : tripTags;
   const visibleTags = limit ? tags.slice(0, limit) : tags;
 
   return visibleTags.map(function (tag) {
