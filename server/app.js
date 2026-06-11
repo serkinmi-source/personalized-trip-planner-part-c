@@ -225,6 +225,133 @@ app.post("/api/trips/search", async (req, res) => {
     }
 });
 
+// Get one trip with itinerary, interests, and reviews from the database
+app.get("/api/trips/:id", async (req, res) => {
+    try {
+        const tripIdentifier = String(req.params.id || "").trim();
+        const numericTripId = Number(tripIdentifier);
+        const isNumericTripId = tripIdentifier !== "" && Number.isInteger(numericTripId);
+
+        if (tripIdentifier === "") {
+            return res.status(404).json({
+                success: false,
+                message: "Trip not found"
+            });
+        }
+
+        const pool = await connectToDatabase();
+        const tripRequest = pool.request();
+        let tripWhereClause = "t.slug = @slug";
+
+        if (isNumericTripId) {
+            tripRequest.input("tripId", numericTripId);
+            tripWhereClause = "t.trip_id = @tripId";
+        } else {
+            tripRequest.input("slug", tripIdentifier);
+        }
+
+        const tripResult = await tripRequest.query(`
+            SELECT
+                t.trip_id,
+                t.slug,
+                t.title,
+                t.city,
+                t.country,
+                t.trip_type,
+                t.estimated_price,
+                t.duration_days,
+                t.recommended_group_size,
+                t.kosher_friendly,
+                t.short_description,
+                t.image_path,
+                ISNULL(AVG(CAST(r.rating AS FLOAT)), 0) AS average_rating,
+                COUNT(r.review_id) AS review_count
+            FROM trips t
+            LEFT JOIN reviews r ON t.trip_id = r.trip_id
+            WHERE ${tripWhereClause}
+            GROUP BY
+                t.trip_id,
+                t.slug,
+                t.title,
+                t.city,
+                t.country,
+                t.trip_type,
+                t.estimated_price,
+                t.duration_days,
+                t.recommended_group_size,
+                t.kosher_friendly,
+                t.short_description,
+                t.image_path;
+        `);
+
+        if (tripResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Trip not found"
+            });
+        }
+
+        const trip = tripResult.recordset[0];
+        const actualTripId = trip.trip_id;
+
+        const itineraryResult = await pool.request()
+            .input("tripId", actualTripId)
+            .query(`
+                SELECT
+                    day_number AS day,
+                    title,
+                    description
+                FROM itinerary_days
+                WHERE trip_id = @tripId
+                ORDER BY day_number;
+            `);
+
+        const interestsResult = await pool.request()
+            .input("tripId", actualTripId)
+            .query(`
+                SELECT i.name
+                FROM trip_interests ti
+                JOIN interests i ON ti.interest_id = i.interest_id
+                WHERE ti.trip_id = @tripId
+                ORDER BY i.name;
+            `);
+
+        const reviewsResult = await pool.request()
+            .input("tripId", actualTripId)
+            .query(`
+                SELECT
+                    r.review_id,
+                    NULLIF(LTRIM(RTRIM(CONCAT(u.first_name, ' ', u.last_name))), '') AS [user],
+                    r.rating,
+                    r.comment AS [text],
+                    r.created_at
+                FROM reviews r
+                LEFT JOIN users u ON r.user_id = u.user_id
+                WHERE r.trip_id = @tripId
+                ORDER BY r.created_at DESC;
+            `);
+
+        trip.interests = interestsResult.recordset.map(function (interest) {
+            return interest.name;
+        });
+        trip.itinerary = itineraryResult.recordset;
+        trip.reviews = reviewsResult.recordset;
+
+        res.json({
+            success: true,
+            trip: trip
+        });
+    } catch (error) {
+        console.error("Error getting trip details:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error getting trip details from database",
+            error: error.message
+        });
+    }
+});
+
 // Start the server
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
