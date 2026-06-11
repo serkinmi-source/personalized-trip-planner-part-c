@@ -358,7 +358,7 @@ function renderRatingSummary(summary) {
 }
 
 // Renders traveler review cards.
-// Expects normalized review objects from static data and localStorage.
+// Expects normalized review objects from the server.
 // Returns HTML markup for all reviews.
 function renderReviews(reviews) {
   if (!Array.isArray(reviews) || reviews.length === 0) {
@@ -393,8 +393,8 @@ function getReviewDisplayName(review) {
   return "Traveler";
 }
 
-// Wires client-side review submission for the current trip.
-// Expects the selected trip object so localStorage reviews can be updated.
+// Wires review submission for the current trip.
+// Expects the selected trip object so database reviews can be updated.
 function initializeReviewForm(trip) {
   const reviewForm = document.getElementById("review-form");
 
@@ -409,26 +409,20 @@ function initializeReviewForm(trip) {
   });
 }
 
-// Updates the review form for guests and users who already reviewed.
+// Updates the review form for guests and logged-in users.
 // Expects the current trip object.
 function updateReviewFormAvailability(trip) {
   const authActions = document.getElementById("review-auth-actions");
   const submitButton = document.querySelector("#review-form button[type='submit']");
-  const userEmail = getCurrentUserEmail();
+  const currentUser = getCurrentUserForReview();
 
   if (authActions) {
-    authActions.hidden = Boolean(userEmail);
+    authActions.hidden = Boolean(currentUser);
   }
 
-  if (!userEmail) {
+  if (!currentUser) {
     enableReviewForm();
     showReviewFeedback("Please log in or sign up to leave a review.", "error");
-    return;
-  }
-
-  if (userHasReviewedTrip(trip.id, userEmail)) {
-    disableReviewForm();
-    showReviewFeedback("You have already reviewed this trip.", "error");
     return;
   }
 
@@ -440,19 +434,19 @@ function updateReviewFormAvailability(trip) {
   }
 }
 
-// Validates and saves a new review in localStorage.
+// Validates and saves a new review in the database.
 // Expects a submit event and the current trip object.
-// Re-renders reviews and rating summaries after a valid submission.
-function handleReviewSubmit(event, trip) {
+// Re-fetches trip details after a successful submission.
+async function handleReviewSubmit(event, trip) {
   event.preventDefault();
 
   clearReviewFieldError("review-rating");
   clearReviewFieldError("review-text");
   showReviewFeedback("");
 
-  const userEmail = getCurrentUserEmail();
+  const currentUser = getCurrentUserForReview();
 
-  if (!userEmail) {
+  if (!currentUser) {
     showReviewFeedback("Please log in or sign up to leave a review.", "error");
     const authActions = document.getElementById("review-auth-actions");
 
@@ -460,12 +454,6 @@ function handleReviewSubmit(event, trip) {
       authActions.hidden = false;
     }
 
-    return;
-  }
-
-  if (userHasReviewedTrip(trip.id, userEmail)) {
-    disableReviewForm();
-    showReviewFeedback("You have already reviewed this trip.", "error");
     return;
   }
 
@@ -489,75 +477,83 @@ function handleReviewSubmit(event, trip) {
     return;
   }
 
-  const saveResult = window.appStorage.saveTripReview({
-    tripId: trip.id,
-    userEmail: userEmail,
-    rating: Number(rating),
-    text: reviewText,
-    createdAt: new Date().toISOString()
-  });
-
-  if (!saveResult.saved) {
-    disableReviewForm();
-    showReviewFeedback("You have already reviewed this trip.", "error");
-    return;
-  }
-
-  if (Array.isArray(trip.reviews) && saveResult.review) {
-    trip.reviews = trip.reviews.concat({
-      source: "local",
-      tripId: saveResult.review.tripId,
-      userEmail: saveResult.review.userEmail,
-      rating: Number(saveResult.review.rating),
-      text: saveResult.review.text,
-      createdAt: saveResult.review.createdAt || ""
+  try {
+    const response = await fetch("/api/trips/" + encodeURIComponent(trip.id) + "/reviews", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId: Number(currentUser.userId),
+        rating: Number(rating),
+        comment: reviewText
+      })
     });
-  }
+    const data = await response.json().catch(function () {
+      return {};
+    });
 
-  event.target.reset();
-  renderReviewAndRatingState(trip);
-  disableReviewForm();
-  showReviewFeedback("Review submitted successfully.", "success");
-}
+    if (!response.ok || data.success === false) {
+      showReviewFeedback(data.message || "Review could not be submitted. Please try again.", "error");
+      return;
+    }
 
-// Re-renders combined reviews and calculated rating summaries.
-// Expects the current trip object.
-function renderReviewAndRatingState(trip) {
-  const reviews = getCombinedTripReviews(trip);
-  const ratingSummary = calculateRatingSummary(reviews);
-  const reviewList = document.getElementById("review-list");
-  const essentialRating = document.getElementById("trip-rating-summary");
-  const heroRating = document.getElementById("trip-hero-rating-summary");
+    event.target.reset();
+    const successMessage = data.message || "Review added successfully.";
 
-  if (reviewList) {
-    reviewList.innerHTML = renderReviews(reviews);
-  }
+    showReviewFeedback(successMessage, "success");
 
-  if (essentialRating) {
-    essentialRating.textContent = renderRatingSummary(ratingSummary);
-  }
-
-  if (heroRating) {
-    heroRating.textContent = renderRatingSummary(ratingSummary);
+    try {
+      await refreshTripDetailsAfterReview(trip.id, successMessage);
+    } catch (refreshError) {
+      showReviewFeedback("Review added successfully. Refresh the page to see the latest reviews.", "success");
+    }
+  } catch (error) {
+    showReviewFeedback("Review could not be submitted. Please try again.", "error");
   }
 }
 
-// Checks whether the current user already reviewed a trip.
-// Expects a trip id and normalized user email.
-function userHasReviewedTrip(tripId, userEmail) {
-  return Boolean(window.appStorage &&
-    window.appStorage.hasUserReviewedTrip &&
-    window.appStorage.hasUserReviewedTrip(tripId, userEmail));
+// Re-fetches and re-renders the trip details after a review is added.
+// Expects a trip id and the success message to keep visible.
+// Updates the reviews, rating summary, and review count from the database.
+async function refreshTripDetailsAfterReview(tripId, successMessage) {
+  const serverTrip = await fetchTripDetailsFromServer(tripId);
+  const updatedTrip = convertServerTripDetailsToFrontendTrip(serverTrip);
+
+  renderTripDetails(updatedTrip);
+  showReviewFeedback(successMessage || "Review added successfully.", "success");
+}
+
+// Gets the logged-in user for database review requests.
+// Expects appStorage current-user data.
+// Returns the current user object or null for guests.
+function getCurrentUserForReview() {
+  const currentUser = window.appStorage && window.appStorage.getCurrentUser
+    ? window.appStorage.getCurrentUser()
+    : getCurrentUserFromLocalStorage();
+
+  if (!currentUser || !currentUser.isLoggedIn || !Number.isInteger(Number(currentUser.userId))) {
+    return null;
+  }
+
+  return currentUser;
+}
+
+// Reads the current user directly if the storage helper is not available.
+// Expects localStorage.currentUser to contain project login state.
+// Returns the parsed user object or null.
+function getCurrentUserFromLocalStorage() {
+  try {
+    return JSON.parse(localStorage.getItem("currentUser"));
+  } catch (error) {
+    return null;
+  }
 }
 
 // Gets the logged-in user's email when available.
 // Expects appStorage current-user data.
 function getCurrentUserEmail() {
-  if (!window.appStorage || !window.appStorage.isUserLoggedIn()) {
-    return "";
-  }
-
-  const currentUser = window.appStorage.getCurrentUser ? window.appStorage.getCurrentUser() : null;
+  const currentUser = getCurrentUserForReview();
   return normalizeEmail(currentUser && currentUser.email);
 }
 

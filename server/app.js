@@ -836,6 +836,162 @@ app.delete("/api/saved-trips/:savedId", async (req, res) => {
     }
 });
 
+// Adds one database review for a trip from a logged-in user
+app.post("/api/trips/:tripId/reviews", async (req, res) => {
+    try {
+        const tripIdValue = String(req.params.tripId || "").trim();
+        const userIdValue = req.body.userId;
+        const ratingValue = req.body.rating;
+        const comment = String(req.body.comment || "").trim();
+        const tripId = Number(tripIdValue);
+        const userId = Number(userIdValue);
+        const rating = Number(ratingValue);
+
+        if (tripIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "Trip id is required."
+            });
+        }
+
+        if (!Number.isInteger(tripId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Trip id must be numeric."
+            });
+        }
+
+        if (userIdValue === undefined || userIdValue === null || userIdValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "User id is required."
+            });
+        }
+
+        if (!Number.isInteger(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "User id must be numeric."
+            });
+        }
+
+        if (ratingValue === undefined || ratingValue === null || ratingValue === "") {
+            return res.status(400).json({
+                success: false,
+                message: "Rating is required."
+            });
+        }
+
+        if (!Number.isFinite(rating)) {
+            return res.status(400).json({
+                success: false,
+                message: "Rating must be a number."
+            });
+        }
+
+        if (rating < 1 || rating > 5) {
+            return res.status(400).json({
+                success: false,
+                message: "Rating must be between 1 and 5."
+            });
+        }
+
+        if (!comment) {
+            return res.status(400).json({
+                success: false,
+                message: "Review text is required."
+            });
+        }
+
+        const pool = await connectToDatabase();
+
+        const userResult = await pool.request()
+            .input("userId", userId)
+            .query(`
+                SELECT user_id
+                FROM users
+                WHERE user_id = @userId;
+            `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found."
+            });
+        }
+
+        const tripResult = await pool.request()
+            .input("tripId", tripId)
+            .query(`
+                SELECT trip_id
+                FROM trips
+                WHERE trip_id = @tripId;
+            `);
+
+        if (tripResult.recordset.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Trip not found."
+            });
+        }
+
+        const existingReviewResult = await pool.request()
+            .input("userId", userId)
+            .input("tripId", tripId)
+            .query(`
+                SELECT review_id
+                FROM reviews
+                WHERE user_id = @userId
+                    AND trip_id = @tripId;
+            `);
+
+        if (existingReviewResult.recordset.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: "You already reviewed this trip."
+            });
+        }
+
+        const insertReviewResult = await pool.request()
+            .input("userId", userId)
+            .input("tripId", tripId)
+            .input("rating", rating)
+            .input("comment", comment)
+            .query(`
+                INSERT INTO reviews (user_id, trip_id, rating, comment, created_at)
+                OUTPUT
+                    INSERTED.review_id,
+                    INSERTED.user_id,
+                    INSERTED.trip_id,
+                    INSERTED.rating,
+                    INSERTED.comment
+                VALUES (@userId, @tripId, @rating, @comment, GETDATE());
+            `);
+
+        const review = insertReviewResult.recordset[0];
+
+        res.json({
+            success: true,
+            message: "Review added successfully.",
+            review: {
+                reviewId: review.review_id,
+                userId: review.user_id,
+                tripId: review.trip_id,
+                rating: review.rating,
+                comment: review.comment
+            }
+        });
+    } catch (error) {
+        console.error("Error adding review:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Error adding review",
+            error: error.message
+        });
+    }
+});
+
 // Get one trip with itinerary, interests, and reviews from the database
 app.get("/api/trips/:id", async (req, res) => {
     try {
