@@ -15,7 +15,7 @@ Personalized Trip Planner is a full-stack web application for personalized trip 
 
 ## Course Note
 
-The course examples used MySQL, but this project uses SQL Server because the development environment is Azure Data Studio. SQL scripts and server queries are therefore written with SQL Server syntax.
+The course examples used MySQL, but this project uses Microsoft SQL Server. Azure Data Studio is used as the database management tool.
 
 ## Folder Structure
 
@@ -82,7 +82,7 @@ Tables:
 ### Users/Profile
 
 - `GET /api/users/:userId`
-- `PUT /api/users/:userId/profile`
+- `PUT /api/users/:userId`
 - `PUT /api/users/:userId/password`
 
 ### Testing
@@ -100,21 +100,40 @@ npm install
 
 2. Create `server/db.config.js` based on `server/db.config.example.js`.
 
-3. Make sure SQL Server is running and available from Azure Data Studio.
+Example configuration:
 
-4. Create the database using:
+```js
+module.exports = {
+    user: 'sa',
+    password: 'YOUR_SQL_SERVER_PASSWORD',
+    server: 'localhost',
+    database: 'personalized_trip_planner',
+    options: {
+        encrypt: false,
+        trustServerCertificate: true
+    }
+};
+```
+
+3. Make sure Microsoft SQL Server is running and accessible from Azure Data Studio.
+
+4. Open and run the schema script in Azure Data Studio:
 
 ```text
 db/schema.sql
 ```
 
-5. Insert seed data using:
+This creates the `personalized_trip_planner` database and all required tables.
+
+5. After `schema.sql` finishes successfully, open and run the seed script in Azure Data Studio:
 
 ```text
 db/seed.sql
 ```
 
-6. If needed, run the image path fix script after seed data:
+This inserts trips, interests, itinerary days, users, reviews, and saved trips.
+
+6. The image path fix script is optional and is not required for a fresh installation:
 
 ```text
 db/fix_image_paths.sql
