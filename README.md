@@ -1,221 +1,220 @@
 # Personalized Trip Planner
 
-Personalized Trip Planner is a full-stack web application for personalized trip recommendations. Users can sign up, log in, enter trip preferences, receive matching trip packages, view trip details, save trips, manage saved trips, add reviews, and update their profile.
+A full-stack travel planning web application that helps users discover trip packages based on their travel style, budget, duration, group size, interests, and kosher-friendly preference.
 
-## Technologies
+The project includes a polished multi-page frontend, an Express API layer, and SQL Server scripts for storing users, trips, interests, saved trips, itineraries, and reviews.
 
-- HTML
-- CSS
-- JavaScript
+## Preview
+
+### Home
+
+![Personalized Trip Planner home page](docs/screenshots/home.png)
+
+### Plan a Trip
+
+![Plan a Trip preferences page](docs/screenshots/plan-a-trip.png)
+
+### Sign Up
+
+![Sign Up page](docs/screenshots/sign-up.png)
+
+### My Trips
+
+![My Trips page](docs/screenshots/my-trips.png)
+
+## Highlights
+
+- Personalized trip search based on trip type, budget, duration, travelers, interests, and kosher-friendly preference.
+- Trip package cards with pricing, duration, ratings, descriptions, tags, and local destination imagery.
+- Trip details page with itinerary, reviews, trip metadata, and save action.
+- User signup, login, profile update, and password update flows.
+- Saved trip management, including status updates and removal.
+- SQL Server schema and seed scripts for repeatable local setup.
+- Local image assets for all main trip and page visuals.
+
+## Tech Stack
+
+- HTML5
+- CSS3
+- Vanilla JavaScript
 - Node.js
 - Express.js
-- SQL Server
-- Azure Data Studio
-- `mssql` npm package
+- Microsoft SQL Server
+- `mssql` Node package
+- Azure Data Studio or another SQL Server client
 
-## Course Note
-
-The course examples used MySQL, but this project uses Microsoft SQL Server. Azure Data Studio is used as the database management tool.
-
-## Folder Structure
-
-- `assets/` - Local image assets, including trip images and background images.
-- `css/` - Shared stylesheet for all pages.
-- `js/` - Frontend JavaScript for validation, recommendations, trip details, profile, storage helpers, and My Trips.
-- `pages/` - Internal HTML pages such as login, signup, preferences, trip details, profile, and My Trips.
-- `db/` - Database scripts, including schema, seed data, and image path fixes.
-- `server/` - Express server, database connection helper, and database configuration example.
-
-## Database
-
-Database name:
+## Project Structure
 
 ```text
-personalized_trip_planner
+personalized-trip-planner-part-c/
+├── assets/
+│   └── images/              # Local trip and page images
+├── css/
+│   └── style.css            # Shared application styles
+├── db/
+│   ├── schema.sql           # Database and table definitions
+│   ├── seed.sql             # Demo data
+│   └── fix_image_paths.sql  # Optional image path maintenance script
+├── docs/
+│   └── screenshots/         # README screenshots
+├── js/                      # Frontend behavior by page/feature
+├── pages/                   # Login, signup, planner, details, profile, saved trips
+├── server/
+│   ├── app.js               # Express app and API routes
+│   ├── db.js                # SQL Server connection helper
+│   └── db.config.example.js # Local database config template
+├── index.html               # Home page
+├── package.json
+└── README.md
 ```
 
-Tables:
+## Getting Started
 
-- `users` - Stores user account details, including name, email, password, and creation date.
-- `trips` - Stores trip packages, destination information, prices, duration, group size, descriptions, and image paths.
-- `interests` - Stores available trip interest names.
-- `trip_interests` - Connects trips to their related interests.
-- `itinerary_days` - Stores day-by-day itinerary details for each trip.
-- `saved_trips` - Stores trips saved by users, including status and saved date.
-- `reviews` - Stores user reviews for trips, including rating, comment, and creation date.
-
-## Main Features
-
-- User signup
-- User login
-- Trip search based on preferences
-- Trip details page
-- Save trip
-- My Trips page
-- Update saved trip status
-- Remove saved trip
-- Add trip review
-- User profile update
-- Password update
-- Trip images displayed from local assets
-
-## Main API Routes
-
-### Auth
-
-- `POST /api/auth/signup`
-- `POST /api/auth/login`
-
-### Trips
-
-- `POST /api/trips/search`
-- `GET /api/trips/:id`
-- `POST /api/trips/:tripId/reviews`
-
-### Saved Trips
-
-- `POST /api/saved-trips`
-- `GET /api/users/:userId/saved-trips`
-- `PUT /api/saved-trips/:savedId/status`
-- `DELETE /api/saved-trips/:savedId`
-
-### Users/Profile
-
-- `GET /api/users/:userId`
-- `PUT /api/users/:userId`
-- `PUT /api/users/:userId/password`
-
-### Testing
-
-- `GET /api/test`
-- `GET /api/db-test`
-
-## How to Run Locally
-
-1. Install dependencies:
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-2. Create `server/db.config.js` based on `server/db.config.example.js`.
+### 2. Configure SQL Server
 
-Example configuration:
+Create a local database config file:
 
-```js
-module.exports = {
-    user: 'sa',
-    password: 'YOUR_SQL_SERVER_PASSWORD',
-    server: 'localhost',
-    database: 'personalized_trip_planner',
-    options: {
-        encrypt: false,
-        trustServerCertificate: true
-    }
-};
+```bash
+cp server/db.config.example.js server/db.config.js
 ```
 
-3. Make sure Microsoft SQL Server is running and accessible from Azure Data Studio.
+Update `server/db.config.js` with your SQL Server username, password, host, port, and database name.
 
-4. Open and run the schema script in Azure Data Studio:
+The expected database name is:
+
+```text
+personalized_trip_planner
+```
+
+### 3. Create and Seed the Database
+
+Open the scripts in Azure Data Studio or another SQL Server client and run them in this order:
 
 ```text
 db/schema.sql
-```
-
-This creates the `personalized_trip_planner` database and all required tables.
-
-5. After `schema.sql` finishes successfully, open and run the seed script in Azure Data Studio:
-
-```text
 db/seed.sql
 ```
 
-This inserts trips, interests, itinerary days, users, reviews, and saved trips.
-
-6. The image path fix script is optional and is not required for a fresh installation:
+For an existing database that needs image path cleanup, run:
 
 ```text
 db/fix_image_paths.sql
 ```
 
-7. Start the server:
-
-```bash
-npm run dev
-```
-
-or:
+### 4. Start the App
 
 ```bash
 npm start
 ```
 
-8. Open the app:
+For development with automatic restarts:
+
+```bash
+npm run dev
+```
+
+Then open:
 
 ```text
 http://localhost:3000
 ```
 
-## Environment and Security Notes
+## Database Model
 
-- `server/db.config.js` contains local database credentials and is ignored by Git.
-- Passwords are stored as plain text only for this course project.
-- In a real system, passwords should be hashed using a secure method such as bcrypt.
-- `currentUser` is stored in `localStorage` for course-demo simplicity.
-- In a production system, authentication should use secure sessions or tokens.
+The SQL Server database stores:
 
-## Known Limitations
+- `users` - Account profile data and demo passwords.
+- `trips` - Trip packages, destinations, prices, durations, descriptions, and image paths.
+- `interests` - Available interest tags.
+- `trip_interests` - Many-to-many relationship between trips and interests.
+- `itinerary_days` - Day-by-day trip itinerary content.
+- `saved_trips` - Trips saved by users, including saved status.
+- `reviews` - User-submitted trip ratings and comments.
 
-- Password hashing was not implemented because it was outside the current course scope.
-- Review editing and deleting are not implemented.
-- Users can write only one review per trip.
-- Users can save each trip only once.
-- Some image fallback logic exists as safety in case an image file is missing.
+## API Reference
 
-## Suggested Demo Flow
+### Health Checks
 
-1. Sign up or log in.
-2. Go to Plan a Trip.
-3. Fill trip preferences.
-4. View recommendations.
-5. Open Trip Details.
-6. Save a trip.
-7. Go to My Trips.
-8. Change trip status.
-9. Remove or re-save a trip.
-10. Add a review.
-11. Update profile details.
-12. Change password.
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/test` | Confirm the Express server is running |
+| `GET` | `/api/db-test` | Confirm SQL Server connectivity |
 
-## Testing Examples
+### Authentication
 
-Test that the Express server is running:
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/auth/signup` | Create a user account |
+| `POST` | `/api/auth/login` | Log in with email and password |
+
+### Trips
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/trips` | Get all trip packages |
+| `POST` | `/api/trips/search` | Search trips from user preferences |
+| `GET` | `/api/trips/:id` | Get one trip by id or slug |
+| `POST` | `/api/trips/:tripId/reviews` | Add a review for a trip |
+
+### Users and Saved Trips
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/users/:userId` | Get one user profile |
+| `PUT` | `/api/users/:userId/profile` | Update profile details |
+| `PUT` | `/api/users/:userId/password` | Update password |
+| `POST` | `/api/saved-trips` | Save a trip |
+| `GET` | `/api/users/:userId/saved-trips` | Get saved trips for a user |
+| `PUT` | `/api/saved-trips/:savedId/status` | Update saved trip status |
+| `DELETE` | `/api/saved-trips/:savedId` | Remove a saved trip |
+
+## Demo Flow
+
+1. Open the home page.
+2. Select **Start Planning**.
+3. Enter travel preferences and generate matches.
+4. Open a trip package to view its details.
+5. Sign up or log in.
+6. Save trips to **My Trips**.
+7. Update saved trip status or remove saved trips.
+8. Edit profile details or change the password.
+9. Add a review to a trip package.
+
+## Example API Checks
 
 ```bash
 curl http://localhost:3000/api/test
-```
-
-Test the database connection:
-
-```bash
 curl http://localhost:3000/api/db-test
-```
-
-Get one user:
-
-```bash
+curl http://localhost:3000/api/trips
+curl http://localhost:3000/api/trips/1
 curl http://localhost:3000/api/users/4
-```
-
-Get one trip:
-
-```bash
-curl http://localhost:3000/api/trips/0
-```
-
-Get saved trips for a user:
-
-```bash
 curl http://localhost:3000/api/users/4/saved-trips
 ```
+
+## Security Notes
+
+This is a university course project and keeps several implementation choices intentionally simple:
+
+- `server/db.config.js` contains local-only database credentials and is ignored by Git.
+- Demo passwords are stored as plain text.
+- Production authentication should use password hashing such as bcrypt.
+- Production sessions should use secure cookies, sessions, or tokens instead of client-side demo state.
+- Input validation exists, but a production system would need broader validation, authorization checks, logging, and error handling.
+
+## Known Limitations
+
+- A local SQL Server instance is required for API-backed search, authentication, trip details, saved trips, and reviews.
+- Review editing and deletion are not implemented.
+- Users can save each trip once.
+- Users can write one review per trip.
+- Some image fallback logic is included in case a local asset path is missing.
+
+## Course Context
+
+The course examples used MySQL, while this implementation uses Microsoft SQL Server with Azure Data Studio for database management.
